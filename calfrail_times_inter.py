@@ -36,12 +36,15 @@ w = open("calfrail_times_out.txt", "w")
 c = open("calfrail_times_out.csv", "w", newline="")
 d = open("calfrail_times_out_drinking_only.csv", "w", newline="")
 e = open("calfrail_drinking_pauses.csv", "w", newline="")
+g = open("calfrail_times_new.csv", "w", newline="")
 tablewriter = csv.writer(c, delimiter=',')
 tablewriter.writerow(['Box number', 'Start', 'Stop', 'Time to start', 'Time to exit'])
 table2writer = csv.writer(d, delimiter=',')
 table2writer.writerow(['Box number', 'Start', 'Stop', 'Time to start'])
 tablepwriter = csv.writer(e, delimiter=',')
 tablepwriter.writerow(['Box number', 'Start', 'Stop', 'Pause time'])
+datawriter = csv.writer(g, delimiter=',')
+datawriter.writerow(['box', 'start', 'stop', 'tts', 'break_0', 'break_1', 'break_2', 'break_3', 'break_4', 'break_5', 'break_6', 'break_7', 'break_8', 'break_9', 'tte', 'amount'])
 
 #variables used to track times, keep is a helper list to calculate time difference 
 keep = []
@@ -55,7 +58,9 @@ feeding = 0
 lines = 0
 last_int = 0
 time_to_exit = 0
-#amount = []
+i = 0
+data = {'box': 0, 'start': 0, 'stop': 0, 'tts': 0, 'break_0': 0, 'break_1': 0, 'break_2': 0, 'break_3': 0, 'break_4': 0, 'break_5': 0, 'break_6': 0, 'break_7': 0, 'break_8': 0, 'break_9': 0, 'tte': 0, 'amount': 0}
+
 
 #function to convert times extracted from log to datetime object
 def time_conversion(matched_time):
@@ -78,9 +83,11 @@ for line in f:
 		feeding_box = match_box.group(2)
 		feeding_side = match_box.group(3)
 		feeding = 1
+		data['box'] = feeding_box
 	#store start and end time in list
 	elif match_start is not None:
 		time_start = time_conversion(match_start.group(1))
+		data['start'] = time_start
 		if not keep:
 			keep.insert(0, time_start)
 		else:
@@ -91,6 +98,7 @@ for line in f:
 			keep.insert(1, time_stop)
 	elif match_none is not None:
 		#amount.append(0)
+		i = 0
 		time_none = time_conversion(match_none.group(1))
 		if len(keep) == 1:
 			keep.insert(1, time_none)
@@ -113,9 +121,17 @@ for line in f:
 			time_match_exit = time_conversion(match_exit.group(1))
 			time_to_exit = time_match_exit - time_stop_exit
 			w.write("   --> time to end: %s box: %s\n" % (time_to_exit, feeding_box))
+			data['tte'] = time_to_exit
+			data['stop'] = time_match_exit
+		
+		data['amount'] = match_exit.group(2)
+		data['stop'] = time_stop_exit
+		datawriter.writerow([data['box'], data['start'], data['stop'], data['tts'], data['break_0'], data['break_1'], data['break_2'], data['break_3'], data['break_4'], data['break_5'], data['break_6'], data['break_7'], data['break_8'], data['break_9'], data['tte'], data['amount']])
 		feeding_box = 0	
 		feeding_side = 0
 		feeding = 0
+		i = 0
+		data = data.fromkeys(data, 0)
 		#amount.append(match_exit.group(2))
 	
 	if len(keepo) == 2:
@@ -124,6 +140,10 @@ for line in f:
 			#print("box %s --> drinking pause: %s timestamp: %s to %s" % (feeding_box, int_dif, keepo[0], keepo[1]))
 			w.write("  --> drinking pause: %s timestamp: %s to %s \n" % (int_dif, keepo[0], keepo[1]))
 			tablepwriter.writerow([feeding_box, keepo[0], keepo[1], int_dif])
+			string = 'break_'
+			string += str(i)
+			data[string] = int_dif
+			i += 1
 		keepo.clear()
 	
 	#when two elements are in the list, calculate time difference and write to output files
@@ -132,10 +152,14 @@ for line in f:
 		dif = keep[1] - keep[0]
 		if dif.total_seconds() == 119:
 			dif = timedelta(seconds = 120)
+		data['tts'] = dif
+		data['start'] = keep[0]
 		w.write("box %s start %s stop %s - time to start: %s \n" % (feeding_box, keep[0], keep[1], dif))
 		tablewriter.writerow([feeding_box, keep[0], keep[1], dif, 0])
 		if dif.total_seconds() >= 120:
 			not_drinking += 1
+			data['stop'] = keep[1]
+			datawriter.writerow([data['box'], data['start'], data['stop'], data['tts'], data['break_0'], data['break_1'], data['break_2'], data['break_3'], data['break_4'], data['break_5'], data['break_6'], data['break_7'], data['break_8'], data['break_9'], data['tte'], data['amount']])
 		elif dif.total_seconds() < 30:
 			under_30 += 1
 			table2writer.writerow([feeding_box, keep[0], keep[1], dif])
